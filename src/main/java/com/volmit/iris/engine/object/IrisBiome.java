@@ -652,7 +652,7 @@ public class IrisBiome extends IrisRegistrant implements IRare {
                         }
                         RandomColor.Color col = VanillaBiomeMap.getColorType(this.getVanillaDerivative());
                         RandomColor.Luminosity lum = VanillaBiomeMap.getColorLuminosity(this.getVanillaDerivative());
-                        RandomColor.SaturationType sat = VanillaBiomeMap.getColorSaturatiom(this.getVanillaDerivative());
+                        RandomColor.SaturationType sat = VanillaBiomeMap.getColorSaturation(this.getVanillaDerivative());
                         int newColorI = randomColor.randomColor(col, col == RandomColor.Color.MONOCHROME ? RandomColor.SaturationType.MONOCHROME : sat, lum);
 
                         return new Color(newColorI);

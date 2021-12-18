@@ -1,6 +1,6 @@
-name: ${name}
-version: ${version}
-main: ${main}
+name: Iris
+version: 1.9.3
+main: com.volmit.iris.Iris
 load: STARTUP
 authors: [ cyberpwn, NextdoorPsycho ]
 website: volmit.com
@@ -20,5 +20,5 @@ libraries:
 commands:
   iris:
     aliases: [ ir, irs ]
-api-version: ${apiversion}
+api-version: 1.18
 hotload-dependencies: false

@@ -22,6 +22,7 @@ import com.volmit.iris.Iris;
 import com.volmit.iris.core.nms.INMSBinding;
 import com.volmit.iris.engine.data.cache.AtomicCache;
 import com.volmit.iris.util.collection.KMap;
+import com.volmit.iris.util.math.BlockPosition;
 import com.volmit.iris.util.nbt.io.NBTUtil;
 import com.volmit.iris.util.nbt.mca.NBTWorld;
 import com.volmit.iris.util.nbt.mca.palette.MCABiomeContainer;
@@ -34,35 +35,38 @@ import com.volmit.iris.util.nbt.mca.palette.MCAPaletteAccess;
 import com.volmit.iris.util.nbt.mca.palette.MCAPalettedContainer;
 import com.volmit.iris.util.nbt.mca.palette.MCAWrappedPalettedContainer;
 import com.volmit.iris.util.nbt.tag.CompoundTag;
-import net.minecraft.core.BlockPosition;
-import net.minecraft.core.IRegistry;
-import net.minecraft.core.IRegistryWritable;
-import net.minecraft.nbt.NBTCompressedStreamTools;
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.nbt.NBTTagDouble;
-import net.minecraft.nbt.NBTTagList;
-import net.minecraft.resources.MinecraftKey;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Registry;
+import net.minecraft.core.WritableRegistry;
+import net.minecraft.nbt.NbtIo;
+//import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.DoubleTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.server.level.WorldServer;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.dedicated.DedicatedServer;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.level.biome.BiomeBase;
+import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.entity.TileEntity;
-import net.minecraft.world.level.block.state.IBlockData;
-import net.minecraft.world.level.chunk.BiomeStorage;
-import net.minecraft.world.level.chunk.Chunk;
-import net.minecraft.world.level.chunk.ChunkSection;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+//import net.minecraft.world.level.chunk.BiomeStorage;
+import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.chunk.LevelChunkSection;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
-import org.bukkit.block.Biome;
 import org.bukkit.block.data.BlockData;
-import org.bukkit.craftbukkit.v1_17_R1.CraftServer;
-import org.bukkit.craftbukkit.v1_17_R1.CraftWorld;
-import org.bukkit.craftbukkit.v1_17_R1.block.data.CraftBlockData;
-import org.bukkit.craftbukkit.v1_17_R1.entity.CraftEntity;
+
+import org.bukkit.craftbukkit.v1_18_R1.CraftServer;
+import org.bukkit.craftbukkit.v1_18_R1.CraftWorld;
+import org.bukkit.craftbukkit.v1_18_R1.block.data.CraftBlockData;
+import org.bukkit.craftbukkit.v1_18_R1.entity.CraftEntity;
 import org.bukkit.entity.EntityType;
+import org.bukkit.generator.BiomeProvider;
 import org.bukkit.generator.ChunkGenerator;
 import org.jetbrains.annotations.NotNull;
 
@@ -77,14 +81,15 @@ import java.lang.reflect.Method;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class NMSBinding18 implements INMSBinding {
     private final BlockData AIR = Material.AIR.createBlockData();
-    private final KMap<Biome, Object> baseBiomeCache = new KMap<>();
-    private final AtomicCache<MCAIdMapper<IBlockData>> registryCache = new AtomicCache<>();
-    private final AtomicCache<MCAPalette<IBlockData>> globalCache = new AtomicCache<>();
-    private final AtomicCache<MCAIdMap<BiomeBase>> biomeMapCache = new AtomicCache<>();
+    private final KMap<org.bukkit.block.Biome, Object> baseBiomeCache = new KMap<>();
+    private final AtomicCache<MCAIdMapper<BlockState>> registryCache = new AtomicCache<>();
+    private final AtomicCache<MCAPalette<BlockState>> globalCache = new AtomicCache<>();
+    private final AtomicCache<MCAIdMap<Biome>> biomeMapCache = new AtomicCache<>();
     private Field biomeStorageCache = null;
 
     public boolean supportsDataPacks() {
@@ -93,21 +98,21 @@ public class NMSBinding18 implements INMSBinding {
 
     @Override
     public MCAPaletteAccess createPalette() {
-        MCAIdMapper<IBlockData> registry = registryCache.aquireNasty(() -> {
-            Field cf = net.minecraft.core.RegistryBlockID.class.getDeclaredField("c");
-            Field df = net.minecraft.core.RegistryBlockID.class.getDeclaredField("d");
-            Field bf = net.minecraft.core.RegistryBlockID.class.getDeclaredField("b");
+        MCAIdMapper<BlockState> registry = registryCache.aquireNasty(() -> {
+            Field cf = net.minecraft.core.IdMapper.class.getDeclaredField("tToId");
+            Field df = net.minecraft.core.IdMapper.class.getDeclaredField("idToT");
+            Field bf = net.minecraft.core.IdMapper.class.getDeclaredField("nextId");
             cf.setAccessible(true);
             df.setAccessible(true);
             bf.setAccessible(true);
-            net.minecraft.core.RegistryBlockID<IBlockData> blockData = Block.p;
+            net.minecraft.core.IdMapper<BlockState> blockData = Block.BLOCK_STATE_REGISTRY;
             int b = bf.getInt(blockData);
-            IdentityHashMap<IBlockData, Integer> c = (IdentityHashMap<IBlockData, Integer>) cf.get(blockData);
-            List<IBlockData> d = (List<IBlockData>) df.get(blockData);
+            IdentityHashMap<BlockState, Integer> c = (IdentityHashMap<BlockState, Integer>) cf.get(blockData);
+            List<BlockState> d = (List<BlockState>) df.get(blockData);
             return new MCAIdMapper<>(c, d, b);
         });
-        MCAPalette<IBlockData> global = globalCache.aquireNasty(() -> new MCAGlobalPalette<>(registry, ((CraftBlockData) AIR).getState()));
-        MCAPalettedContainer<IBlockData> container = new MCAPalettedContainer<>(global, registry,
+        MCAPalette<BlockState> global = globalCache.aquireNasty(() -> new MCAGlobalPalette<>(registry, ((CraftBlockData) AIR).getState()));
+        MCAPalettedContainer<BlockState> container = new MCAPalettedContainer<>(global, registry,
                 i -> ((CraftBlockData) NBTWorld.getBlockData(i)).getState(),
                 i -> NBTWorld.getCompound(CraftBlockData.fromData(i)),
                 ((CraftBlockData) AIR).getState());
@@ -129,45 +134,49 @@ public class NMSBinding18 implements INMSBinding {
 
     @Override
     public boolean hasTile(Location l) {
-        return ((CraftWorld) l.getWorld()).getHandle().getTileEntity(new BlockPosition(l.getBlockX(), l.getBlockY(), l.getBlockZ()), false) != null;
+        return ((CraftWorld) l.getWorld()).getHandle().getBlockEntity(new BlockPos(l.getBlockX(), l.getBlockY(), l.getBlockZ()), false) != null;
     }
 
     @Override
     public CompoundTag serializeTile(Location location) {
-        TileEntity e = ((CraftWorld) location.getWorld()).getHandle().getTileEntity(new BlockPosition(location.getBlockX(), location.getBlockY(), location.getBlockZ()), true);
+        BlockEntity blockEntity = ((CraftWorld) location.getWorld()).getHandle().getBlockEntity(new BlockPos(location.getBlockX(), location.getBlockY(), location.getBlockZ()), true);
 
-        if (e == null) {
+        if (blockEntity == null) {
             return null;
         }
 
-        NBTTagCompound tag = new NBTTagCompound();
-        e.save(tag);
+        net.minecraft.nbt.CompoundTag tag = new net.minecraft.nbt.CompoundTag();
+        blockEntity.load(tag);
+        //blockEntity.save(tag);
         return convert(tag);
     }
 
     @Override
     public void deserializeTile(CompoundTag s, Location newPosition) {
-        NBTTagCompound c = convert(s);
+        net.minecraft.nbt.CompoundTag c = convert(s);
 
         if (c != null) {
             int x = newPosition.getBlockX();
             int y = newPosition.getBlockY();
             int z = newPosition.getBlockZ();
-            WorldServer w = ((CraftWorld) newPosition.getWorld()).getHandle();
-            Chunk ch = w.getChunkAt(x >> 4, z >> 4);
-            ChunkSection sect = ch.getSections()[y >> 4];
-            IBlockData block = sect.getBlocks().a(x & 15, y & 15, z & 15);
-            BlockPosition pos = new BlockPosition(x, y, z);
-            ch.b(TileEntity.create(pos, block, c));
+            ServerLevel w = ((CraftWorld) newPosition.getWorld()).getHandle();
+            LevelChunk ch = w.getChunkAt(new BlockPos(x >> 4, 0, z >> 4));
+            //LevelChunk ch = w.getChunkAt(x >> 4, z >> 4);
+            LevelChunkSection sect = ch.getSections()[y >> 4];
+            BlockState block = sect.getStates().get(x & 15, y & 15, z & 15);
+            //BlockState block = sect.getBlocks().a(x & 15, y & 15, z & 15);
+            BlockPos pos = new BlockPos(x, y, z);
+            ch.addAndRegisterBlockEntity( BlockEntity.loadStatic(pos, block, c));
+            //ch.b(BlockEntity.create(pos, block, c));
         }
     }
 
-    private NBTTagCompound convert(CompoundTag tag) {
+    private net.minecraft.nbt.CompoundTag convert(CompoundTag tag) {
         try {
             ByteArrayOutputStream boas = new ByteArrayOutputStream();
             NBTUtil.write(tag, boas, false);
             DataInputStream din = new DataInputStream(new ByteArrayInputStream(boas.toByteArray()));
-            NBTTagCompound c = NBTCompressedStreamTools.a((DataInput) din);
+            net.minecraft.nbt.CompoundTag c = NbtIo.read((DataInput) din);
             din.close();
             return c;
         } catch (Throwable e) {
@@ -177,11 +186,12 @@ public class NMSBinding18 implements INMSBinding {
         return null;
     }
 
-    private CompoundTag convert(NBTTagCompound tag) {
+    private CompoundTag convert(net.minecraft.nbt.CompoundTag tag) {
         try {
             ByteArrayOutputStream boas = new ByteArrayOutputStream();
             DataOutputStream dos = new DataOutputStream(boas);
-            NBTCompressedStreamTools.a(tag, (DataOutput) dos);
+            NbtIo.write(tag, (DataOutput) dos);
+            //NbtIo.writeCompressed(tag, (DataOutput) dos); //TODO ??
             dos.close();
             return (CompoundTag) NBTUtil.read(new ByteArrayInputStream(boas.toByteArray()), false).getTag();
         } catch (Throwable ex) {
@@ -194,7 +204,7 @@ public class NMSBinding18 implements INMSBinding {
     @Override
     public CompoundTag serializeEntity(org.bukkit.entity.Entity be) {
         Entity entity = ((CraftEntity) be).getHandle();
-        NBTTagCompound tag = new NBTTagCompound();
+        net.minecraft.nbt.CompoundTag tag = new net.minecraft.nbt.CompoundTag();
         entity.save(tag);
         CompoundTag t = convert(tag);
         t.putInt("btype", be.getType().ordinal());
@@ -206,12 +216,12 @@ public class NMSBinding18 implements INMSBinding {
 
         EntityType type = EntityType.values()[s.getInt("btype")];
         s.remove("btype");
-        NBTTagCompound tag = convert(s);
-        NBTTagList pos = tag.getList("Pos", 6);
-        pos.a(0, NBTTagDouble.a(newPosition.getX()));
-        pos.a(1, NBTTagDouble.a(newPosition.getY()));
-        pos.a(2, NBTTagDouble.a(newPosition.getZ()));
-        tag.set("Pos", pos);
+        net.minecraft.nbt.CompoundTag tag = convert(s);
+        ListTag pos = tag.getList("Pos", 6);
+        pos.add(0, DoubleTag.valueOf(newPosition.getX()));
+        pos.add(1, DoubleTag.valueOf(newPosition.getY()));
+        pos.add(2, DoubleTag.valueOf(newPosition.getZ()));
+        tag.put("Pos", pos);
         org.bukkit.entity.Entity be = newPosition.getWorld().spawnEntity(newPosition, type);
         ((CraftEntity) be).getHandle().load(tag);
 
@@ -244,23 +254,29 @@ public class NMSBinding18 implements INMSBinding {
         return null;
     }
 
-    private IRegistryWritable<BiomeBase> getCustomBiomeRegistry() {
-        return ((CraftServer) Bukkit.getServer()).getHandle().getServer().getCustomRegistry().b(IRegistry.aO);
+    private WritableRegistry<Biome> getCustomBiomeRegistry() {
+        DedicatedServer dedicatedServer = ((CraftServer) Bukkit.getServer()).getHandle().getServer();
+        //Optional<WritableRegistry<Biome>> w = dedicatedServer.registryAccess().ownedRegistry(Registry.BIOME_REGISTRY);
+
+        return dedicatedServer.registryAccess().ownedRegistryOrThrow(net.minecraft.core.Registry.BIOME_REGISTRY);
+
+        //return ((CraftServer) Bukkit.getServer()).getHandle().getServer().getCustomRegistry().b(net.minecraft.core.Registry.BIOME_REGISTRY);
     }
 
     @Override
     public Object getBiomeBaseFromId(int id) {
-        return getCustomBiomeRegistry().fromId(id);
+        return getCustomBiomeRegistry().byId(id);
+        //return getCustomBiomeRegistry().fromId(id);
     }
 
     @Override
     public int getTrueBiomeBaseId(Object biomeBase) {
-        return getCustomBiomeRegistry().getId((BiomeBase) biomeBase);
+        return getCustomBiomeRegistry().getId((Biome) biomeBase);
     }
 
     @Override
     public Object getTrueBiomeBase(Location location) {
-        return ((CraftWorld) location.getWorld()).getHandle().getBiome(location.getBlockX(), location.getBlockY(), location.getBlockZ());
+        return ((CraftWorld) location.getWorld()).getHandle().getNoiseBiome(location.getBlockX(), location.getBlockY(), location.getBlockZ());
     }
 
     @Override
@@ -281,7 +297,8 @@ public class NMSBinding18 implements INMSBinding {
     @Override
     public Object getCustomBiomeBaseFor(String mckey) {
         try {
-            return getCustomBiomeRegistry().d(ResourceKey.a(IRegistry.aO, new MinecraftKey(mckey.toLowerCase())));
+            ResourceKey<Biome> resourceKey = ResourceKey.create(net.minecraft.core.Registry.BIOME_REGISTRY, new ResourceLocation(mckey.toLowerCase()));
+            return getCustomBiomeRegistry().getOrThrow(resourceKey);
         } catch (Throwable e) {
             Iris.reportError(e);
         }
@@ -292,12 +309,13 @@ public class NMSBinding18 implements INMSBinding {
     @SuppressWarnings("OptionalGetWithoutIsPresent")
     @Override
     public String getKeyForBiomeBase(Object biomeBase) {
-        return getCustomBiomeRegistry().c((BiomeBase) biomeBase).get().a().toString();
+        return getCustomBiomeRegistry().getResourceKey((Biome) biomeBase).get().location().toString();
+        //return getCustomBiomeRegistry().getResourceKey((Biome) biomeBase).get().a().toString();
     }
 
     @Override
-    public Object getBiomeBase(World world, Biome biome) {
-        return getBiomeBase(((CraftWorld) world).getHandle().t().d(IRegistry.aO), biome);
+    public Object getBiomeBase(World world, org.bukkit.block.Biome biome) {
+        return getBiomeBase(((CraftWorld) world).getHandle().registryAccess().registryOrThrow(Registry.CONFIGURED_FEATURE_REGISTRY), biome);
     }
 
     private Class<?>[] classify(Object... par) {
@@ -366,73 +384,73 @@ public class NMSBinding18 implements INMSBinding {
     }
 
     @Override
-    public Object getBiomeBase(Object registry, Biome biome) {
+    public Object getBiomeBase(Object registry, org.bukkit.block.Biome biome) {
         Object v = baseBiomeCache.get(biome);
 
         if (v != null) {
             return v;
         }
         //noinspection unchecked
-        v = org.bukkit.craftbukkit.v1_17_R1.block.CraftBlock.biomeToBiomeBase((IRegistry<BiomeBase>) registry, biome);
+        v = org.bukkit.craftbukkit.v1_18_R1.block.CraftBlock.biomeToBiomeBase((net.minecraft.core.Registry<Biome>) registry, biome);
         if (v == null) {
             // Ok so there is this new biome name called "CUSTOM" in Paper's new releases.
             // But, this does NOT exist within CraftBukkit which makes it return an error.
             // So, we will just return the ID that the plains biome returns instead.
             //noinspection unchecked
-            return org.bukkit.craftbukkit.v1_17_R1.block.CraftBlock.biomeToBiomeBase((IRegistry<BiomeBase>) registry, Biome.PLAINS);
+            return org.bukkit.craftbukkit.v1_18_R1.block.CraftBlock.biomeToBiomeBase((net.minecraft.core.Registry<Biome>) registry, org.bukkit.block.Biome.PLAINS);
         }
         baseBiomeCache.put(biome, v);
         return v;
     }
 
     @Override
-    public int getBiomeId(Biome biome) {
+    public int getBiomeId(org.bukkit.block.Biome biome) {
         for (World i : Bukkit.getWorlds()) {
             if (i.getEnvironment().equals(World.Environment.NORMAL)) {
 
-                IRegistry<BiomeBase> registry = ((CraftWorld) i).getHandle().t().d(IRegistry.aO);
+                net.minecraft.core.Registry<Biome> registry = ((CraftWorld) i).getHandle().registryAccess().registryOrThrow(Registry.BIOME_REGISTRY); //aO in 1.18 mappings would be CONFIGURED_STRUCTURE_FEATURE_REGISTRY?
 
-                return registry.getId((BiomeBase) getBiomeBase(registry, biome));
+                return registry.getId((Biome) getBiomeBase(registry, biome));
             }
         }
 
         return biome.ordinal();
     }
 
-    private MCAIdMap<BiomeBase> getBiomeMapping() {
+    private MCAIdMap<Biome> getBiomeMapping() {
         return biomeMapCache.aquire(() -> new MCAIdMap<>() {
             @NotNull
             @Override
-            public Iterator<BiomeBase> iterator() {
+            public Iterator<Biome> iterator() {
                 return getCustomBiomeRegistry().iterator();
             }
 
             @Override
-            public int getId(BiomeBase paramT) {
+            public int getId(Biome paramT) {
                 return getCustomBiomeRegistry().getId(paramT);
             }
 
             @Override
-            public BiomeBase byId(int paramInt) {
-                return getCustomBiomeRegistry().fromId(paramInt);
-            }
+            public Biome byId(int paramInt) {
+                return getCustomBiomeRegistry().byId(paramInt);
+            } //TODO: byIdOrThrow instead?
         });
     }
 
     @Override
     public MCABiomeContainer newBiomeContainer(int min, int max) {
-        MCAChunkBiomeContainer<BiomeBase> base = new MCAChunkBiomeContainer<>(getBiomeMapping(), min, max);
+        MCAChunkBiomeContainer<Biome> base = new MCAChunkBiomeContainer<>(getBiomeMapping(), min, max);
         return getBiomeContainerInterface(getBiomeMapping(), base);
     }
 
     @Override
     public MCABiomeContainer newBiomeContainer(int min, int max, int[] data) {
-        MCAChunkBiomeContainer<BiomeBase> base = new MCAChunkBiomeContainer<>(getBiomeMapping(), min, max, data);
+        MCAChunkBiomeContainer<Biome> base = new MCAChunkBiomeContainer<>(getBiomeMapping(), min, max, data);
         return getBiomeContainerInterface(getBiomeMapping(), base);
     }
 
     @NotNull
-    private MCABiomeContainer getBiomeContainerInterface(MCAIdMap<BiomeBase> biomeMapping, MCAChunkBiomeContainer<BiomeBase> base) {
+    private MCABiomeContainer getBiomeContainerInterface(MCAIdMap<Biome> biomeMapping, MCAChunkBiomeContainer<Biome> base) {
         return new MCABiomeContainer() {
             @Override
             public int[] getData() {
@@ -454,29 +472,43 @@ public class NMSBinding18 implements INMSBinding {
     @Override
     public int countCustomBiomes() {
         AtomicInteger a = new AtomicInteger(0);
-        getCustomBiomeRegistry().d().forEach((i) -> {
-            MinecraftKey k = i.getKey().a();
 
-            if (k.getNamespace().equals("minecraft")) {
+        getCustomBiomeRegistry().keySet().forEach((resourceLocation) -> {
+            //ResourceLocation k = i. i.getKey().a();
+
+            if (resourceLocation.getNamespace().equals("minecraft")) {
                 return;
             }
 
             a.incrementAndGet();
-            Iris.debug("Custom Biome: " + k);
+            Iris.debug("Custom Biome: " + resourceLocation);
         });
 
         return a.get();
     }
 
-    @Override
+    /*@Override
     public void forceBiomeInto(int x, int y, int z, Object somethingVeryDirty, ChunkGenerator.BiomeGrid chunk) {
         try {
-            BiomeStorage s = (BiomeStorage) getFieldForBiomeStorage(chunk).get(chunk);
-            s.setBiome(x, y, z, (BiomeBase) somethingVeryDirty);
+            //BiomeStorage s = (BiomeStorage) getFieldForBiomeStorage(chunk).get(chunk);
+            //s.setBiome(x, y, z, (Biome) somethingVeryDirty);
         } catch (IllegalAccessException e) {
             Iris.reportError(e);
             e.printStackTrace();
         }
+    }**/
+
+
+    //TODO: Idek if this is right
+    @Override
+    public void forceBiomeInto(int x, int y, int z, Object somethingVeryDirty,ChunkGenerator.BiomeGrid chunk) {
+        //try {
+            chunk.setBiome(x, y, z, (org.bukkit.block.Biome) somethingVeryDirty);
+            //s.setBiome(x, y, z, (Biome) somethingVeryDirty);
+            //} catch (IllegalAccessException e) {
+            //Iris.reportError(e);
+            //e.printStackTrace();
+            //}
     }
 
     @Override

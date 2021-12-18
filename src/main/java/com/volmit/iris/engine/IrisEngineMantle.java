@@ -90,7 +90,18 @@ public class IrisEngineMantle implements EngineMantle {
         KList<IrisRegion> r = new KList<>();
 
         for (String i : getEngine().getDimension().getRegions()) {
-            r.add(getEngine().getData().getRegionLoader().load(i));
+            if(i != null){
+                IrisRegion irisRegion = getEngine().getData().getRegionLoader().load(i);
+                if(irisRegion != null){
+                    r.add(irisRegion);
+                }else {
+                    Iris.warn("getAllRegions() irisRegion is null for String " + i);
+                }
+
+            }else{
+                Iris.warn("getAllRegions() region String is null");
+            }
+
         }
 
         return r;
@@ -100,7 +111,9 @@ public class IrisEngineMantle implements EngineMantle {
         KList<IrisBiome> r = new KList<>();
 
         for (IrisRegion i : getAllRegions()) {
+
             r.addAll(i.getAllBiomes(getEngine()));
+
         }
 
         return r;

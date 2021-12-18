@@ -42,6 +42,7 @@ import org.bukkit.permissions.Permission;
 import org.bukkit.permissions.PermissionAttachment;
 import org.bukkit.permissions.PermissionAttachmentInfo;
 import org.bukkit.plugin.Plugin;
+import org.jetbrains.annotations.NotNull;
 
 import java.time.Duration;
 import java.util.Set;
@@ -60,7 +61,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class VolmitSender implements CommandSender {
     @Getter
     private static final KMap<String, String> helpCache = new KMap<>();
-    private final CommandSender s;
+    private final CommandSender sender;
     private String tag;
     @Getter
     @Setter
@@ -69,16 +70,16 @@ public class VolmitSender implements CommandSender {
     /**
      * Wrap a command sender
      *
-     * @param s the command sender
+     * @param sender the command sender
      */
-    public VolmitSender(CommandSender s) {
+    public VolmitSender(CommandSender sender) {
         tag = "";
-        this.s = s;
+        this.sender = sender;
     }
 
-    public VolmitSender(CommandSender s, String tag) {
+    public VolmitSender(CommandSender sender, String tag) {
         this.tag = tag;
-        this.s = s;
+        this.sender = sender;
     }
 
     public static long getTick() {
@@ -134,7 +135,7 @@ public class VolmitSender implements CommandSender {
      * @return true if it is
      */
     public boolean isPlayer() {
-        return getS() instanceof Player;
+        return getSender() instanceof Player;
     }
 
     /**
@@ -143,7 +144,7 @@ public class VolmitSender implements CommandSender {
      * @return a casted player
      */
     public Player player() {
-        return (Player) getS();
+        return (Player) getSender();
     }
 
     /**
@@ -151,84 +152,84 @@ public class VolmitSender implements CommandSender {
      *
      * @return the command sender
      */
-    public CommandSender getS() {
-        return s;
+    public CommandSender getSender() {
+        return sender;
     }
 
     @Override
     public boolean isPermissionSet(String name) {
-        return s.isPermissionSet(name);
+        return sender.isPermissionSet(name);
     }
 
     @Override
     public boolean isPermissionSet(Permission perm) {
-        return s.isPermissionSet(perm);
+        return sender.isPermissionSet(perm);
     }
 
     @Override
     public boolean hasPermission(String name) {
-        return s.hasPermission(name);
+        return sender.hasPermission(name);
     }
 
     @Override
     public boolean hasPermission(Permission perm) {
-        return s.hasPermission(perm);
+        return sender.hasPermission(perm);
     }
 
     @Override
     public PermissionAttachment addAttachment(Plugin plugin, String name, boolean value) {
-        return s.addAttachment(plugin, name, value);
+        return sender.addAttachment(plugin, name, value);
     }
 
     @Override
     public PermissionAttachment addAttachment(Plugin plugin) {
-        return s.addAttachment(plugin);
+        return sender.addAttachment(plugin);
     }
 
     @Override
     public PermissionAttachment addAttachment(Plugin plugin, String name, boolean value, int ticks) {
-        return s.addAttachment(plugin, name, value, ticks);
+        return sender.addAttachment(plugin, name, value, ticks);
     }
 
     @Override
     public PermissionAttachment addAttachment(Plugin plugin, int ticks) {
-        return s.addAttachment(plugin, ticks);
+        return sender.addAttachment(plugin, ticks);
     }
 
     @Override
     public void removeAttachment(PermissionAttachment attachment) {
-        s.removeAttachment(attachment);
+        sender.removeAttachment(attachment);
     }
 
     @Override
     public void recalculatePermissions() {
-        s.recalculatePermissions();
+        sender.recalculatePermissions();
     }
 
     @Override
     public Set<PermissionAttachmentInfo> getEffectivePermissions() {
-        return s.getEffectivePermissions();
+        return sender.getEffectivePermissions();
     }
 
     @Override
     public boolean isOp() {
-        return s.isOp();
+        return sender.isOp();
     }
 
     @Override
     public void setOp(boolean value) {
-        s.setOp(value);
+        sender.setOp(value);
     }
 
     public void hr() {
-        s.sendMessage("========================================================");
+        sender.sendMessage("========================================================");
     }
 
     public void sendTitle(String title, String subtitle, int i, int s, int o) {
         Iris.audiences.player(player()).showTitle(Title.title(
                 createComponent(title),
                 createComponent(subtitle),
-                Title.Times.of(Duration.ofMillis(i), Duration.ofMillis(s), Duration.ofMillis(o))));
+                Title.Times.times(Duration.ofMillis(i), Duration.ofMillis(s), Duration.ofMillis(o))));
     }
 
     public void sendProgress(double percent, String thing) {
@@ -257,43 +258,43 @@ public class VolmitSender implements CommandSender {
         Iris.audiences.player(player()).showTitle(Title.title(
                 createNoPrefixComponent(" "),
                 createNoPrefixComponent(subtitle),
-                Title.Times.of(Duration.ofMillis(i), Duration.ofMillis(s), Duration.ofMillis(o))));
+                Title.Times.times(Duration.ofMillis(i), Duration.ofMillis(s), Duration.ofMillis(o))));
     }
 
     private Component createNoPrefixComponent(String message) {
         if (!IrisSettings.get().getGeneral().canUseCustomColors(this)) {
-            String t = C.translateAlternateColorCodes('&', MiniMessage.get().stripTokens(message));
-            return MiniMessage.get().parse(t);
+            String t = C.translateAlternateColorCodes('&', MiniMessage.miniMessage().stripTokens(message));
+            return MiniMessage.miniMessage().parse(t);
         }
 
         String t = C.translateAlternateColorCodes('&', message);
         String a = C.aura(t, IrisSettings.get().getGeneral().getSpinh(), IrisSettings.get().getGeneral().getSpins(), IrisSettings.get().getGeneral().getSpinb(), 0.36);
-        return MiniMessage.get().parse(a);
+        return MiniMessage.miniMessage().parse(a);
     }
 
     private Component createNoPrefixComponentNoProcessing(String message) {
-        return MiniMessage.get().parse(message);
+        return MiniMessage.miniMessage().parse(message);
     }
 
     private Component createComponent(String message) {
         if (!IrisSettings.get().getGeneral().canUseCustomColors(this)) {
-            String t = C.translateAlternateColorCodes('&', MiniMessage.get().stripTokens(getTag() + message));
-            return MiniMessage.get().parse(t);
+            String t = C.translateAlternateColorCodes('&', MiniMessage.miniMessage().stripTokens(getTag() + message));
+            return MiniMessage.miniMessage().parse(t);
         }
 
         String t = C.translateAlternateColorCodes('&', getTag() + message);
         String a = C.aura(t, IrisSettings.get().getGeneral().getSpinh(), IrisSettings.get().getGeneral().getSpins(), IrisSettings.get().getGeneral().getSpinb());
-        return MiniMessage.get().parse(a);
+        return MiniMessage.miniMessage().parse(a);
     }
 
     private Component createComponentRaw(String message) {
         if (!IrisSettings.get().getGeneral().canUseCustomColors(this)) {
-            String t = C.translateAlternateColorCodes('&', MiniMessage.get().stripTokens(getTag() + message));
-            return MiniMessage.get().parse(t);
+            String t = C.translateAlternateColorCodes('&', MiniMessage.miniMessage().stripTokens(getTag() + message));
+            return MiniMessage.miniMessage().parse(t);
         }
 
         String t = C.translateAlternateColorCodes('&', getTag() + message);
-        return MiniMessage.get().parse(t);
+        return MiniMessage.miniMessage().parse(t);
     }
 
     public <T> void showWaiting(String passive, CompletableFuture<T> f) {
@@ -322,58 +323,58 @@ public class VolmitSender implements CommandSender {
 
     @Override
     public void sendMessage(String message) {
-        if (s instanceof CommandDummy) {
+        if (sender instanceof CommandDummy) {
             return;
         }
 
-        if ((!IrisSettings.get().getGeneral().isUseCustomColorsIngame() && s instanceof Player) || !IrisSettings.get().getGeneral().isUseConsoleCustomColors()) {
-            s.sendMessage(C.translateAlternateColorCodes('&', getTag() + message));
+        if ((!IrisSettings.get().getGeneral().isUseCustomColorsIngame() && sender instanceof Player) || !IrisSettings.get().getGeneral().isUseConsoleCustomColors()) {
+            sender.sendMessage(C.translateAlternateColorCodes('&', getTag() + message));
             return;
         }
 
         if (message.contains("<NOMINI>")) {
-            s.sendMessage(C.translateAlternateColorCodes('&', getTag() + message.replaceAll("\\Q<NOMINI>\\E", "")));
+            sender.sendMessage(C.translateAlternateColorCodes('&', getTag() + message.replaceAll("\\Q<NOMINI>\\E", "")));
             return;
         }
 
         try {
-            Iris.audiences.sender(s).sendMessage(createComponent(message));
+            Iris.audiences.sender(sender).sendMessage(createComponent(message));
         } catch (Throwable e) {
             String t = C.translateAlternateColorCodes('&', getTag() + message);
             String a = C.aura(t, IrisSettings.get().getGeneral().getSpinh(), IrisSettings.get().getGeneral().getSpins(), IrisSettings.get().getGeneral().getSpinb());
 
             Iris.debug("<NOMINI>Failure to parse " + a);
-            s.sendMessage(C.translateAlternateColorCodes('&', getTag() + message));
+            sender.sendMessage(C.translateAlternateColorCodes('&', getTag() + message));
         }
     }
 
     public void sendMessageBasic(String message) {
-        s.sendMessage(C.translateAlternateColorCodes('&', getTag() + message));
+        sender.sendMessage(C.translateAlternateColorCodes('&', getTag() + message));
     }
 
     public void sendMessageRaw(String message) {
-        if (s instanceof CommandDummy) {
+        if (sender instanceof CommandDummy) {
             return;
         }
 
-        if ((!IrisSettings.get().getGeneral().isUseCustomColorsIngame() && s instanceof Player) || !IrisSettings.get().getGeneral().isUseConsoleCustomColors()) {
-            s.sendMessage(C.translateAlternateColorCodes('&', message));
+        if ((!IrisSettings.get().getGeneral().isUseCustomColorsIngame() && sender instanceof Player) || !IrisSettings.get().getGeneral().isUseConsoleCustomColors()) {
+            sender.sendMessage(C.translateAlternateColorCodes('&', message));
             return;
         }
 
         if (message.contains("<NOMINI>")) {
-            s.sendMessage(message.replaceAll("\\Q<NOMINI>\\E", ""));
+            sender.sendMessage(message.replaceAll("\\Q<NOMINI>\\E", ""));
             return;
         }
 
         try {
-            Iris.audiences.sender(s).sendMessage(createComponentRaw(message));
+            Iris.audiences.sender(sender).sendMessage(createComponentRaw(message));
         } catch (Throwable e) {
             String t = C.translateAlternateColorCodes('&', getTag() + message);
             String a = C.aura(t, IrisSettings.get().getGeneral().getSpinh(), IrisSettings.get().getGeneral().getSpins(), IrisSettings.get().getGeneral().getSpinb());
 
             Iris.debug("<NOMINI>Failure to parse " + a);
-            s.sendMessage(C.translateAlternateColorCodes('&', getTag() + message));
+            sender.sendMessage(C.translateAlternateColorCodes('&', getTag() + message));
         }
     }
 
@@ -395,17 +396,22 @@ public class VolmitSender implements CommandSender {
 
     @Override
     public Server getServer() {
-        return s.getServer();
+        return sender.getServer();
     }
 
     @Override
     public String getName() {
-        return s.getName();
+        return sender.getName();
     }
 
     @Override
     public Spigot spigot() {
-        return s.spigot();
+        return sender.spigot();
+    }
+
+    @Override
+    public @NotNull Component name() {
+        return sender.name();
     }
 
     private String pickRandoms(int max, VirtualDecreeCommand i) {
@@ -498,7 +504,7 @@ public class VolmitSender implements CommandSender {
     }
 
     public void sendDecreeHelpNode(VirtualDecreeCommand i) {
-        if (isPlayer() || s instanceof CommandDummy) {
+        if (isPlayer() || sender instanceof CommandDummy) {
             sendMessageRaw(helpCache.computeIfAbsent(i.getPath(), (k) -> {
                 String newline = "<reset>\n";
 
@@ -541,7 +547,7 @@ public class VolmitSender implements CommandSender {
                         String nUsage;
                         String fullTitle;
                         Iris.debug("Contextual: " + p.isContextual() + " / player: " + isPlayer());
-                        if (p.isContextual() && (isPlayer() || s instanceof CommandDummy)) {
+                        if (p.isContextual() && (isPlayer() || sender instanceof CommandDummy)) {
                             fullTitle = "<#ffcc00>[" + nTitle + "<#ffcc00>] ";
                             nUsage = "<#ff9900>➱ <#ffcc00><font:minecraft:uniform>The value may be derived from environment context.";
                         } else if (p.isRequired()) {

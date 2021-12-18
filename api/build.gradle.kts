@@ -17,29 +17,30 @@
  */
 
 plugins {
-    id 'java'
+    `java-library`
 }
 
-group 'com.volmit.iris'
-version '1.0.0'
+group = "com.volmit.iris"
+version = "1.0.0"
+
+
 
 repositories {
     mavenCentral()
-    maven {
-        url 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/'
+    maven("https://hub.spigotmc.org/nexus/content/repositories/snapshots/") {
         content {
-            includeGroup 'org.spigotmc'
+            includeGroup("org.spigotmc")
         }
     }
+    maven("https://dl.cloudsmith.io/public/arcane/archive/maven/")
 }
 
 dependencies {
-    implementation rootProject
-    implementation 'org.spigotmc:spigot-api:1.17.1-R0.1-SNAPSHOT'
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.7.0'
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.7.0'
+    implementation(rootProject)
+    implementation("org.spigotmc:spigot-api:1.18.1-R0.1-SNAPSHOT")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.8.2")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.8.2")
 }
-
-test {
+tasks.test {
     useJUnitPlatform()
 }
